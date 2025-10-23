@@ -67,6 +67,7 @@ export default function get_renderer(
   // ===============================================
   //    Create Render Pipeline and Bind Groups
   // ===============================================
+
   const render_shader = device.createShaderModule({code: renderWGSL});
   const render_pipeline = device.createRenderPipeline({
     label: 'gaussian render pipeline',
@@ -102,40 +103,35 @@ export default function get_renderer(
   // ===============================================
   //    Command Encoder Functions
   // ===============================================
-  const render = (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
-    const pass = encoder.beginRenderPass({
-      label: 'gaussian point cloud render',
-      colorAttachments: [
-        {
-          view: texture_view,
-          loadOp: 'clear',
-          storeOp: 'store',
-        }
-      ],
-    });
-    pass.setPipeline(render_pipeline);
-    pass.setBindGroup(0, camera_bind_group);
-    pass.setBindGroup(1, gaussian_bind_group);
 
-    pass.draw(pc.num_points);
-    pass.end();
-  };
 
   // ===============================================
   //    Return Render Object
   // ===============================================
   return {
     frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
-      render(encoder, texture_view);
+      const pass = encoder.beginRenderPass({
+        label: 'gaussian point cloud render',
+        colorAttachments: [
+          {
+            view: texture_view,
+            loadOp: 'clear',
+            storeOp: 'store',
+          }
+        ],
+      });
+      pass.setPipeline(render_pipeline);
+
+      //pass.drawIndirect();
+
+      pass.setBindGroup(0, camera_bind_group);
+      pass.setBindGroup(1, gaussian_bind_group);
+
+      pass.draw(pc.num_points);
+      pass.end();
     },
 
     camera_buffer,
   };
 
-  // return {
-  //   frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
-  //     sorter.sort(encoder);
-  //   },
-  //   camera_buffer,
-  // };
 }

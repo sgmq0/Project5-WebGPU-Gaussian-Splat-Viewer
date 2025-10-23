@@ -68,8 +68,8 @@ export default function get_renderer(
   //    Create Render Pipeline and Bind Groups
   // ===============================================
   const drawArgs = new Uint32Array(4);
-  drawArgs[0] = 6;
-  drawArgs[1] = pc.num_points;
+  drawArgs[0] = 6; // vertex count for instance
+  drawArgs[1] = pc.num_points; // instance count
   drawArgs[2] = 0; // First Vertex
   drawArgs[3] = 0; // First Instance
 
@@ -115,12 +115,29 @@ export default function get_renderer(
   //    Command Encoder Functions
   // ===============================================
 
+  // do all the compute shader stuff here
+  const doCompute = (encoder: GPUCommandEncoder) => {
+    // run the light clustering compute pass(es) here
+    // implementing clustering here allows for reusing the code in both Forward+ and Clustered Deferred
+
+    const computePass = encoder.beginComputePass();
+    computePass.setPipeline(preprocess_pipeline);
+
+    computePass.setBindGroup(0, camera_bind_group);
+    computePass.setBindGroup(1, gaussian_bind_group);
+    computePass.setBindGroup(2, sort_bind_group);
+
+    computePass.dispatchWorkgroups(Math.ceil(pc.num_points / C.histogram_wg_size));
+    computePass.end();
+  }
 
   // ===============================================
   //    Return Render Object
   // ===============================================
   return {
     frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
+
+      //doCompute(encoder);
       sorter.sort(encoder);
 
       const pass = encoder.beginRenderPass({
@@ -139,7 +156,8 @@ export default function get_renderer(
       pass.setBindGroup(0, camera_bind_group);
       pass.setBindGroup(1, gaussian_bind_group);
 
-      pass.drawIndirect(indirect_buffer, 0);
+      pass.draw(pc.num_points);
+      //pass.drawIndirect(indirect_buffer, 0);
 
       pass.end();
     },

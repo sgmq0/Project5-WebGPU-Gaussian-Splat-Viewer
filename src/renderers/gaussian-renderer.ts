@@ -67,7 +67,21 @@ export default function get_renderer(
   // ===============================================
   //    Create Render Pipeline and Bind Groups
   // ===============================================
+  const drawArgs = new Uint32Array(4);
+  drawArgs[0] = 6;
+  drawArgs[1] = pc.num_points;
+  drawArgs[2] = 0; // First Vertex
+  drawArgs[3] = 0; // First Instance
 
+  const indirect_buffer = createBuffer(
+    device,
+    "indirect render buffer",
+    16,
+    GPUBufferUsage.COPY_DST | GPUBufferUsage.INDIRECT,
+    drawArgs
+  );
+
+  // create render pipeline
   const render_shader = device.createShaderModule({code: renderWGSL});
   const render_pipeline = device.createRenderPipeline({
     label: 'gaussian render pipeline',
@@ -80,10 +94,7 @@ export default function get_renderer(
       module: render_shader,
       entryPoint: 'fs_main',
       targets: [{ format: presentation_format }],
-    },
-    primitive: {
-      topology: 'point-list',
-    },
+    }
   });
 
   const camera_bind_group = device.createBindGroup({
@@ -110,8 +121,10 @@ export default function get_renderer(
   // ===============================================
   return {
     frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
+      sorter.sort(encoder);
+
       const pass = encoder.beginRenderPass({
-        label: 'gaussian point cloud render',
+        label: 'gaussian renderer',
         colorAttachments: [
           {
             view: texture_view,
@@ -120,14 +133,14 @@ export default function get_renderer(
           }
         ],
       });
-      pass.setPipeline(render_pipeline);
 
-      //pass.drawIndirect();
+      pass.setPipeline(render_pipeline);
 
       pass.setBindGroup(0, camera_bind_group);
       pass.setBindGroup(1, gaussian_bind_group);
 
-      pass.draw(pc.num_points);
+      pass.drawIndirect(indirect_buffer, 0);
+
       pass.end();
     },
 

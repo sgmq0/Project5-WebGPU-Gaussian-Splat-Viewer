@@ -7,6 +7,12 @@ struct Splat {
     //TODO: information defined in preprocess compute shader
 };
 
+@group(0) @binding(0)
+var<uniform> camera: CameraUniforms;
+
+@group(1) @binding(0)
+var<storage,read> gaussians : array<Gaussian>;
+
 @vertex
 fn vs_main(
 ) -> VertexOutput {

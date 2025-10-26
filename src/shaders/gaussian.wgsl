@@ -1,3 +1,8 @@
+struct VertexInput {
+    @builtin(vertex_index) vertex_index: u32,
+    @builtin(instance_index) instance_index: u32
+};
+
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     //TODO: information passed from vertex shader to fragment shader
@@ -31,17 +36,29 @@ var<storage,read> gaussians : array<Gaussian>;
 
 @vertex
 fn vs_main(
-    @builtin(vertex_index) in_vertex_index: u32,
+    in: VertexInput
 ) -> VertexOutput {
     //TODO: reconstruct 2D quad based on information from splat, pass 
     var out: VertexOutput;
 
-    let vertex = gaussians[in_vertex_index];
+    let quad = array<vec2<f32>, 6>(
+        vec2(-1.0, -1.0),
+        vec2( 1.0, -1.0),
+        vec2(-1.0,  1.0),
+        vec2(-1.0,  1.0),
+        vec2( 1.0, -1.0),
+        vec2( 1.0,  1.0),
+    );
+
+    let vertex = gaussians[in.instance_index];
     let a = unpack2x16float(vertex.pos_opacity[0]);
     let b = unpack2x16float(vertex.pos_opacity[1]);
-    let pos = vec4<f32>(a.x, a.y, b.x, 1.);
+    let pos = vec3<f32>(a.x, a.y, 1.0);
 
-    out.position = camera.proj * camera.view * pos;
+    let scale = 0.01;
+    let local = quad[in.vertex_index] * scale;
+    var world = vec4<f32>(pos + vec3<f32>(local, 0.0), 1.0);
+    out.position = camera.proj * camera.view * world;
 
     return out;
 }

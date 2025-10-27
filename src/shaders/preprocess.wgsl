@@ -144,9 +144,12 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
     // temp size for testing
     let size = vec2f(0.01, 0.01);
 
+    // increment the index for splat storage
+    let atomic_idx = atomicAdd(&sort_infos.keys_size, 1u);
+
     // store data into splats
-    splats[idx].packed_pos = pack2x16float(ndc_pos);
-    splats[idx].packed_size = pack2x16float(size);
+    splats[atomic_idx].packed_pos = pack2x16float(ndc_pos);
+    splats[atomic_idx].packed_size = pack2x16float(size);
 
     let keys_per_dispatch = workgroupSize * sortKeyPerThread;
     // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys

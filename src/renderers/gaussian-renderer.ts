@@ -105,7 +105,7 @@ export default function get_renderer(
   // ===============================================
   const drawArgs = new Uint32Array(4);
   drawArgs[0] = 6; // vertex count for instance
-  drawArgs[1] = pc.num_points; // instance count
+  drawArgs[1] = 0; // instance count. setting to 0 for now, will be updated by compute shader
   drawArgs[2] = 0; // First Vertex
   drawArgs[3] = 0; // First Instance
 
@@ -165,6 +165,7 @@ export default function get_renderer(
   return {
     frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
 
+      // reset sorting info buffer
       encoder.copyBufferToBuffer(
         null_buffer, 0,
         sorter.sort_info_buffer, 0,
@@ -178,6 +179,15 @@ export default function get_renderer(
 
       doCompute(encoder);
       sorter.sort(encoder);
+
+      // copy number of sorted points to indirect draw buffer
+      encoder.copyBufferToBuffer(
+        sorter.sort_info_buffer, 
+        0, // keys_size offset 
+        indirect_buffer, 
+        4, // instance count offset
+        4 
+      );
 
       const pass = encoder.beginRenderPass({
         label: 'gaussian renderer',

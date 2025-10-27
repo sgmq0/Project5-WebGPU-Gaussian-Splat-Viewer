@@ -141,6 +141,11 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
     let clip_pos = camera.proj * camera.view * pos;
     let ndc_pos = clip_pos.xy / clip_pos.w;
 
+    // cull splats outside of view frustum
+    if (ndc_pos.x < -1.2 || ndc_pos.x > 1.2 || ndc_pos.y < -1.2 || ndc_pos.y > 1.2 || clip_pos.w < 0.0) {
+        return;
+    }
+
     // temp size for testing
     let size = vec2f(0.01, 0.01);
 

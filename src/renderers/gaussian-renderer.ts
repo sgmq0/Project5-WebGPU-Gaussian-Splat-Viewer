@@ -52,6 +52,14 @@ export default function get_renderer(
     null
   );
 
+  const render_settings_buffer = createBuffer(
+    device, 
+    'render_settings_buffer', 
+    8,
+    GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    new Float32Array([1.0, pc.sh_deg])
+  );
+
   // ===============================================
   //    Create Compute Pipeline and Bind Groups
   // ===============================================
@@ -97,7 +105,10 @@ export default function get_renderer(
   const splat_compute_bind_group = device.createBindGroup({
     label: 'splats (compute)',
     layout: preprocess_pipeline.getBindGroupLayout(3),
-    entries: [{binding: 0, resource: { buffer: splat_data }}],
+    entries: [
+      {binding: 0, resource: { buffer: splat_data }},
+      {binding: 1, resource: { buffer: render_settings_buffer }},
+    ],
   })
 
   // ===============================================

@@ -5,7 +5,7 @@ import { get_sorter,c_histogram_block_rows,C } from '../sort/sort';
 import { Renderer } from './renderer';
 
 export interface GaussianRenderer extends Renderer {
-
+  render_settings_buffer: GPUBuffer,
 }
 
 // Utility to create GPU buffers
@@ -44,7 +44,7 @@ export default function get_renderer(
     nulling_data
   );
 
-  const splat_data = createBuffer(
+  const splat_buffer = createBuffer(
     device,
     "splat buffer",
     8 * pc.num_points,
@@ -52,12 +52,13 @@ export default function get_renderer(
     null
   );
 
+  const render_settings_array = new Float32Array([1.0, pc.sh_deg]);
   const render_settings_buffer = createBuffer(
     device, 
     'render_settings_buffer', 
     8,
     GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
-    new Float32Array([1.0, pc.sh_deg])
+    render_settings_array
   );
 
   // ===============================================
@@ -106,7 +107,7 @@ export default function get_renderer(
     label: 'splats (compute)',
     layout: preprocess_pipeline.getBindGroupLayout(3),
     entries: [
-      {binding: 0, resource: { buffer: splat_data }},
+      {binding: 0, resource: { buffer: splat_buffer }},
       {binding: 1, resource: { buffer: render_settings_buffer }},
     ],
   })
@@ -148,7 +149,7 @@ export default function get_renderer(
   const splat_render_bind_group = device.createBindGroup({
     label: 'splats (render)',
     layout: render_pipeline.getBindGroupLayout(0),
-    entries: [{binding: 0, resource: { buffer: splat_data }}],
+    entries: [{binding: 0, resource: { buffer: splat_buffer }}],
   })
 
   // ===============================================
@@ -220,7 +221,7 @@ export default function get_renderer(
       pass.end();
     },
 
-    camera_buffer,
+    camera_buffer, render_settings_buffer
   };
 
 }

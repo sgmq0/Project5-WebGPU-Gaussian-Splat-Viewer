@@ -56,8 +56,8 @@ struct Gaussian {
 };
 
 struct Splat {
-    //TODO: store information for 2D splat rendering
-    pos: vec4<f32>
+    packed_pos: u32,
+    packed_size: u32
 };
 
 @group(0) @binding(0)
@@ -75,6 +75,9 @@ var<storage, read_write> sort_depths : array<u32>;
 var<storage, read_write> sort_indices : array<u32>;
 @group(2) @binding(3)
 var<storage, read_write> sort_dispatch: DispatchIndirect;
+
+@group(3) @binding(0)
+var<storage, read_write> splats : array<Splat>;
 
 /// reads the ith sh coef from the storage buffer 
 fn sh_coef(splat_idx: u32, c_idx: u32) -> vec3<f32> {
@@ -118,13 +121,33 @@ fn computeColorFromSH(dir: vec3<f32>, v_idx: u32, sh_deg: u32) -> vec3<f32> {
 @compute @workgroup_size(workgroupSize,1,1)
 fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) wgs: vec3<u32>) {
     let idx = gid.x;
-    // //TODO: set up pipeline as described in instruction
 
     if (idx >= arrayLength(&gaussians)) {
         return;
     }
 
-    let keys_per_dispatch = workgroupSize * sortKeyPerThread; 
-    // // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
+    // testing to acquire each resource from bind group 2
+    let passes = sort_infos.passes;
+    let depth = sort_depths[0];
+    let index = sort_indices[0];
+    let dispatch = sort_dispatch.dispatch_z;
 
+    let vertex = gaussians[idx];
+    let a = unpack2x16float(vertex.pos_opacity[0]);
+    let b = unpack2x16float(vertex.pos_opacity[1]);
+    let pos = vec4<f32>(a.x, a.y, b.x, 1.0);
+
+    // transform into screen space
+    let clip_pos = camera.proj * camera.view * pos;
+    let ndc_pos = clip_pos.xy / clip_pos.w;
+
+    // temp size for testing
+    let size = vec2f(0.01, 0.01);
+
+    // store data into splats
+    splats[idx].packed_pos = pack2x16float(ndc_pos);
+    splats[idx].packed_size = pack2x16float(size);
+
+    let keys_per_dispatch = workgroupSize * sortKeyPerThread;
+    // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
 }

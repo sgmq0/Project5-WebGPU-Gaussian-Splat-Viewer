@@ -9,8 +9,8 @@ struct VertexOutput {
 };
 
 struct Splat {
-    //TODO: information defined in preprocess compute shader
-    pos: vec4<f32>
+    packed_pos: u32,
+    packed_size: u32
 };
 
 struct CameraUniforms {
@@ -29,10 +29,7 @@ struct Gaussian {
 }
 
 @group(0) @binding(0)
-var<uniform> camera: CameraUniforms;
-
-@group(1) @binding(0)
-var<storage,read> gaussians : array<Gaussian>;
+var<storage, read> splats : array<Splat>;
 
 @vertex
 fn vs_main(
@@ -50,20 +47,21 @@ fn vs_main(
         vec2( 1.0,  1.0),
     );
 
-    let vertex = gaussians[in.instance_index];
-    let a = unpack2x16float(vertex.pos_opacity[0]);
-    let b = unpack2x16float(vertex.pos_opacity[1]);
-    let pos = vec3<f32>(a.x, a.y, b.x);
+    // unpack data from splats
+    let splat = splats[in.instance_index];
+    let pos = unpack2x16float(splat.packed_pos);
+    let size = unpack2x16float(splat.packed_size);
 
-    let scale = 0.01;
-    let local = quad[in.vertex_index] * scale;
-    var world = vec4<f32>(pos + vec3<f32>(local, 0.0), 1.0);
-    out.position = camera.proj * camera.view * world;
+    let local = quad[in.vertex_index];
+    let scaled_local = vec2(local.x * size.x, local.y * size.y);
+    let world_pos = vec2(pos.x + scaled_local.x, pos.y + scaled_local.y);
+
+    out.position = vec4<f32>(world_pos, 0.0, 1.0);
 
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1., 0., 0., 1.);
+    return vec4<f32>(1., 1., 1., 1.);
 }

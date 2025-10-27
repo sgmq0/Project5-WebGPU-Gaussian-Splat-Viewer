@@ -36,6 +36,22 @@ export default function get_renderer(
 
   const nulling_data = new Uint32Array([0]);
 
+  const null_buffer = createBuffer(
+    device,
+    "null buffer",
+    4,
+    GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+    nulling_data
+  );
+
+  const splat_data = createBuffer(
+    device,
+    "splat buffer",
+    8 * pc.num_points,
+    GPUBufferUsage.STORAGE,
+    null
+  );
+
   // ===============================================
   //    Create Compute Pipeline and Bind Groups
   // ===============================================
@@ -52,8 +68,23 @@ export default function get_renderer(
     },
   });
 
+  // bind groups for preprocess pipeline
+  const camera_bind_group = device.createBindGroup({
+    label: 'camera (gaussian)',
+    layout: preprocess_pipeline.getBindGroupLayout(0),
+    entries: [{binding: 0, resource: { buffer: camera_buffer }}],
+  });
+
+  const gaussian_bind_group = device.createBindGroup({
+    label: 'gaussians (gaussian)',
+    layout: preprocess_pipeline.getBindGroupLayout(1),
+    entries: [
+      {binding: 0, resource: { buffer: pc.gaussian_3d_buffer }},
+    ],
+  });
+
   const sort_bind_group = device.createBindGroup({
-    label: 'sort',
+    label: 'sort (gaussian)',
     layout: preprocess_pipeline.getBindGroupLayout(2),
     entries: [
       { binding: 0, resource: { buffer: sorter.sort_info_buffer } },
@@ -63,6 +94,11 @@ export default function get_renderer(
     ],
   });
 
+  const splat_compute_bind_group = device.createBindGroup({
+    label: 'splats (compute)',
+    layout: preprocess_pipeline.getBindGroupLayout(3),
+    entries: [{binding: 0, resource: { buffer: splat_data }}],
+  })
 
   // ===============================================
   //    Create Render Pipeline and Bind Groups
@@ -97,24 +133,31 @@ export default function get_renderer(
     }
   });
 
-  const camera_bind_group = device.createBindGroup({
-    label: 'point cloud camera',
+  // bind group for splats
+  const splat_render_bind_group = device.createBindGroup({
+    label: 'splats (render)',
     layout: render_pipeline.getBindGroupLayout(0),
-    entries: [{binding: 0, resource: { buffer: camera_buffer }}],
-  });
-
-  const gaussian_bind_group = device.createBindGroup({
-    label: 'point cloud gaussians',
-    layout: render_pipeline.getBindGroupLayout(1),
-    entries: [
-      {binding: 0, resource: { buffer: pc.gaussian_3d_buffer }},
-    ],
-  });
+    entries: [{binding: 0, resource: { buffer: splat_data }}],
+  })
 
   // ===============================================
   //    Command Encoder Functions
   // ===============================================
 
+  const doCompute = (encoder: GPUCommandEncoder) => {
+    const computePass = encoder.beginComputePass();
+    
+    computePass.setPipeline(preprocess_pipeline);
+
+    computePass.setBindGroup(0, camera_bind_group);
+    computePass.setBindGroup(1, gaussian_bind_group);
+    computePass.setBindGroup(2, sort_bind_group);
+    computePass.setBindGroup(3, splat_compute_bind_group);
+
+    computePass.dispatchWorkgroups(Math.ceil(pc.num_points / C.histogram_wg_size));
+
+    computePass.end();
+  }
 
   // ===============================================
   //    Return Render Object
@@ -122,6 +165,18 @@ export default function get_renderer(
   return {
     frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
 
+      encoder.copyBufferToBuffer(
+        null_buffer, 0,
+        sorter.sort_info_buffer, 0,
+        4
+      );
+      encoder.copyBufferToBuffer(
+        null_buffer, 0,
+        sorter.sort_dispatch_indirect_buffer, 0,
+        4
+      );
+
+      doCompute(encoder);
       sorter.sort(encoder);
 
       const pass = encoder.beginRenderPass({
@@ -137,8 +192,7 @@ export default function get_renderer(
 
       pass.setPipeline(render_pipeline);
 
-      pass.setBindGroup(0, camera_bind_group);
-      pass.setBindGroup(1, gaussian_bind_group);
+      pass.setBindGroup(0, splat_render_bind_group);
 
       pass.drawIndirect(indirect_buffer, 0);
 

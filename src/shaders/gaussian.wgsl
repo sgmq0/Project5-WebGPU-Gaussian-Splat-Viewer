@@ -53,7 +53,7 @@ fn vs_main(
     let vertex = gaussians[in.instance_index];
     let a = unpack2x16float(vertex.pos_opacity[0]);
     let b = unpack2x16float(vertex.pos_opacity[1]);
-    let pos = vec3<f32>(a.x, a.y, 1.0);
+    let pos = vec3<f32>(a.x, a.y, b.x);
 
     let scale = 0.01;
     let local = quad[in.vertex_index] * scale;

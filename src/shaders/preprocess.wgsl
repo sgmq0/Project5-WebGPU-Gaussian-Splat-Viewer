@@ -59,6 +59,7 @@ struct Splat {
     packed_pos: u32,
     packed_size: u32,
     color: vec3<f32>,
+    packed_conic_opacity: array<u32,2>
 };
 
 @group(0) @binding(0)
@@ -243,6 +244,14 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
 
     let size = vec2f(radius, radius) / camera.viewport;
 
+     // find the conic
+    let conic = vec3f(cov.z / det, -cov.y / det, cov.x / det);
+    let alpha = b.y;
+    let opacity = 1.0 / (1.0 + exp(-alpha));
+
+    let conic_a = pack2x16float(conic.xy);
+    let conic_b = pack2x16float(vec2f(conic.z, opacity));
+
     // increment the index for splat storage
     let atomic_idx = atomicAdd(&sort_infos.keys_size, 1u);
 
@@ -254,6 +263,8 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
     splats[atomic_idx].packed_pos = pack2x16float(ndc_pos);
     splats[atomic_idx].packed_size = pack2x16float(size);
     splats[atomic_idx].color = color.xyz;
+    splats[atomic_idx].packed_conic_opacity[0] = conic_a;
+    splats[atomic_idx].packed_conic_opacity[1] = conic_b;
     //splats[atomic_idx].packed_col = pack2x16float(col.xy);
 
     // store data into sort stuff

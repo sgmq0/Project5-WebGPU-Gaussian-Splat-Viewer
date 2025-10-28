@@ -7,14 +7,18 @@ struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     //TODO: information passed from vertex shader to fragment shader
     
-    @location(0) @interpolate(flat) packed_size: u32,
-    @location(1) color: vec3<f32>
+    @location(0) @interpolate(flat) packed_pos: u32,
+    @location(1) @interpolate(flat) packed_size: u32,
+    @location(2) color: vec3<f32>,
+    @location(3) conic_opacity: vec4<f32>,
+    @location(4) conic_center: vec2<f32>,
 };
 
 struct Splat {
     packed_pos: u32,
     packed_size: u32,
-    color: vec3<f32>
+    color: vec3<f32>,
+    packed_conic_opacity: array<u32,2>
 };
 
 struct CameraUniforms {
@@ -37,6 +41,9 @@ var<storage, read> splats : array<Splat>;
 
 @group(0) @binding(1)
 var<storage, read> sort_indices : array<u32>;
+
+@group(1) @binding(0)
+var<uniform> camera: CameraUniforms;
 
 @vertex
 fn vs_main(
@@ -65,8 +72,17 @@ fn vs_main(
     let scaled_local = vec2(local.x * size.x, local.y * size.y);
     let world_pos = vec2(pos.x + scaled_local.x, pos.y + scaled_local.y);
 
+    // do all the conic stuff
+    let conic_xy = unpack2x16float(splat.packed_conic_opacity[0]);
+    let conic_za = unpack2x16float(splat.packed_conic_opacity[1]);
+    let conic_opacity = vec4f(conic_xy.x, conic_xy.y, conic_za.x, conic_za.y);
+    let conic_center = vec2f(pos.x, pos.y);
+
     out.position = vec4<f32>(world_pos, 0.0, 1.0);
+    out.packed_pos = splat.packed_pos;
     out.packed_size = splat.packed_size;
+    out.conic_opacity = conic_opacity;
+    out.conic_center = conic_center;
     out.color = color;
 
     return out;
@@ -74,9 +90,30 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let pos = unpack2x16float(in.packed_pos);
     let size = unpack2x16float(in.packed_size);
-    let width = size.x;
-    let height = size.y;
 
-    return vec4<f32>(in.color.xyz, 1.);
+    // compute ndc pos of vertex
+    var ndc = in.position.xy / camera.viewport * 2.0 - 1.0;
+    ndc.y *= -1.0;
+
+    // compute offset
+    var offset = ndc - in.conic_center.xy;
+    offset = offset * camera.viewport * 0.5;
+
+    // compute the power
+    let o = in.conic_opacity;
+    let power = -0.5 * (o.x * offset.x * offset.x + o.z * offset.y * offset.y) - o.y * offset.x * offset.y;
+
+    if (power > 0.0) {
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
+
+    // compute the alpha
+    let alpha = min(0.99, in.conic_opacity.w * exp(power));
+    if (alpha < 1.0 / 255.0) {
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
+
+     return vec4<f32>(in.color * alpha, alpha);
 }

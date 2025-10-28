@@ -142,7 +142,21 @@ export default function get_renderer(
     fragment: {
       module: render_shader,
       entryPoint: 'fs_main',
-      targets: [{ format: presentation_format }],
+      targets: [{ 
+        format: presentation_format,
+        blend: {
+          color: {
+              srcFactor: 'one',
+              dstFactor: 'one-minus-src-alpha',
+              operation: 'add',
+          },
+          alpha: {
+              srcFactor: 'one',
+              dstFactor: 'one-minus-src-alpha',
+              operation: 'add',
+          },
+        },
+      }],
     }
   });
 
@@ -153,6 +167,14 @@ export default function get_renderer(
     entries: [
       {binding: 0, resource: { buffer: splat_buffer }},
       {binding: 1, resource: { buffer: sorter.ping_pong[0].sort_indices_buffer } },
+    ],
+  })
+
+  const camera_render_bind_group = device.createBindGroup({
+    label: 'splats (render)',
+    layout: render_pipeline.getBindGroupLayout(1),
+    entries: [
+      {binding: 0, resource: { buffer: camera_buffer }},
     ],
   })
 
@@ -219,6 +241,7 @@ export default function get_renderer(
       pass.setPipeline(render_pipeline);
 
       pass.setBindGroup(0, splat_render_bind_group);
+      pass.setBindGroup(1, camera_render_bind_group);
 
       pass.drawIndirect(indirect_buffer, 0);
 

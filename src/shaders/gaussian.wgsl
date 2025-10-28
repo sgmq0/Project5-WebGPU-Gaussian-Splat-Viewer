@@ -6,6 +6,8 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     //TODO: information passed from vertex shader to fragment shader
+    
+    @location(0) @interpolate(flat) packed_size: u32
 };
 
 struct Splat {
@@ -31,6 +33,9 @@ struct Gaussian {
 @group(0) @binding(0)
 var<storage, read> splats : array<Splat>;
 
+@group(0) @binding(1)
+var<storage, read> sort_indices : array<u32>;
+
 @vertex
 fn vs_main(
     in: VertexInput
@@ -48,7 +53,8 @@ fn vs_main(
     );
 
     // unpack data from splats
-    let splat = splats[in.instance_index];
+    let actual_index = sort_indices[in.instance_index];
+    let splat = splats[actual_index];
     let pos = unpack2x16float(splat.packed_pos);
     let size = unpack2x16float(splat.packed_size);
 
@@ -57,11 +63,16 @@ fn vs_main(
     let world_pos = vec2(pos.x + scaled_local.x, pos.y + scaled_local.y);
 
     out.position = vec4<f32>(world_pos, 0.0, 1.0);
+    out.packed_size = splat.packed_size;
 
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1., 1., 1., 1.);
+    let size = unpack2x16float(in.packed_size);
+    let width = size.x;
+    let height = size.y;
+
+    return vec4<f32>(width, height, 0., 1.);
 }

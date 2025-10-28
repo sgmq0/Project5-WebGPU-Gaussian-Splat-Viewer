@@ -149,7 +149,10 @@ export default function get_renderer(
   const splat_render_bind_group = device.createBindGroup({
     label: 'splats (render)',
     layout: render_pipeline.getBindGroupLayout(0),
-    entries: [{binding: 0, resource: { buffer: splat_buffer }}],
+    entries: [
+      {binding: 0, resource: { buffer: splat_buffer }},
+      {binding: 1, resource: { buffer: sorter.ping_pong[0].sort_indices_buffer } },
+    ],
   })
 
   // ===============================================

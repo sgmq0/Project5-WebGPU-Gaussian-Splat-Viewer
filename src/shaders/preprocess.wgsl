@@ -234,6 +234,14 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
     splats[atomic_idx].packed_pos = pack2x16float(ndc_pos);
     splats[atomic_idx].packed_size = pack2x16float(size);
 
+    // store data into sort stuff
+    sort_indices[atomic_idx] = atomic_idx;
+    let view_depth = (camera.view * pos).z;
+    sort_depths[atomic_idx] = bitcast<u32>(100.0f - view_depth);
+
     let keys_per_dispatch = workgroupSize * sortKeyPerThread;
     // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
+    if (atomic_idx % keys_per_dispatch == 0) {
+        atomicAdd(&sort_dispatch.dispatch_x, 1u);
+    }
 }

@@ -109,6 +109,7 @@ export default function get_renderer(
     entries: [
       {binding: 0, resource: { buffer: splat_buffer }},
       {binding: 1, resource: { buffer: render_settings_buffer }},
+      {binding: 2, resource: { buffer: pc.sh_buffer }},
     ],
   })
 

@@ -57,7 +57,8 @@ struct Gaussian {
 
 struct Splat {
     packed_pos: u32,
-    packed_size: u32
+    packed_size: u32,
+    color: vec3<f32>,
 };
 
 @group(0) @binding(0)
@@ -82,10 +83,25 @@ var<storage, read_write> splats : array<Splat>;
 @group(3) @binding(1)
 var<uniform> render_settings: RenderSettings;
 
+@group(3) @binding(2)
+var<storage, read> sh_buffer: array<u32>;
+
 /// reads the ith sh coef from the storage buffer 
 fn sh_coef(splat_idx: u32, c_idx: u32) -> vec3<f32> {
     //TODO: access your binded sh_coeff, see load.ts for how it is stored
-    return vec3<f32>(0.0);
+    // splat_idx: index of the splat to access  
+    // c_idx: index of the coefficient
+    let idx = splat_idx * 24u + (c_idx / 2u * 3u) + (c_idx % 2u); // each coeff uses 3 u32 which is 2 coeffs packed into 6 u32
+
+    let col_xy = unpack2x16float(sh_buffer[idx]);
+    let col_za = unpack2x16float(sh_buffer[idx + 1]);
+
+    if (idx % 2u == 0u) {
+        return vec3<f32>(col_xy.x, col_xy.y, col_za.x);
+    } else {
+        return vec3<f32>(col_xy.y, col_za.x, col_za.y);
+    }
+
 }
 
 // spherical harmonics evaluation with Condon–Shortley phase
@@ -230,9 +246,15 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
     // increment the index for splat storage
     let atomic_idx = atomicAdd(&sort_infos.keys_size, 1u);
 
+    // find the normal and compute color
+    let normal_vec = normalize(pos.xyz - camera.view_inv[3].xyz);
+    let color = computeColorFromSH(normal_vec, idx, u32(render_settings.sh_deg));
+
     // store data into splats
     splats[atomic_idx].packed_pos = pack2x16float(ndc_pos);
     splats[atomic_idx].packed_size = pack2x16float(size);
+    splats[atomic_idx].color = color.xyz;
+    //splats[atomic_idx].packed_col = pack2x16float(col.xy);
 
     // store data into sort stuff
     sort_indices[atomic_idx] = atomic_idx;

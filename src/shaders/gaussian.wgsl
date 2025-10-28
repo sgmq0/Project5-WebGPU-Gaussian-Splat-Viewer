@@ -7,12 +7,14 @@ struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     //TODO: information passed from vertex shader to fragment shader
     
-    @location(0) @interpolate(flat) packed_size: u32
+    @location(0) @interpolate(flat) packed_size: u32,
+    @location(1) color: vec3<f32>
 };
 
 struct Splat {
     packed_pos: u32,
-    packed_size: u32
+    packed_size: u32,
+    color: vec3<f32>
 };
 
 struct CameraUniforms {
@@ -57,6 +59,7 @@ fn vs_main(
     let splat = splats[actual_index];
     let pos = unpack2x16float(splat.packed_pos);
     let size = unpack2x16float(splat.packed_size);
+    let color = splat.color;
 
     let local = quad[in.vertex_index];
     let scaled_local = vec2(local.x * size.x, local.y * size.y);
@@ -64,6 +67,7 @@ fn vs_main(
 
     out.position = vec4<f32>(world_pos, 0.0, 1.0);
     out.packed_size = splat.packed_size;
+    out.color = color;
 
     return out;
 }
@@ -74,5 +78,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let width = size.x;
     let height = size.y;
 
-    return vec4<f32>(width, height, 0., 1.);
+    return vec4<f32>(in.color.xyz, 1.);
 }

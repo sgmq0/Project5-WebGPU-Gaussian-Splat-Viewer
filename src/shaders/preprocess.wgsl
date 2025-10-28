@@ -149,10 +149,6 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
         return;
     }
 
-    // temp size for testing
-    var size = vec2f(0.01, 0.01);
-    let scale_mod = render_settings.gaussian_scaling;
-
     // compute 3d covariance
     let rot_a = unpack2x16float(vertex.rot[0]);
     let rot_b = unpack2x16float(vertex.rot[1]);
@@ -160,7 +156,7 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
     let x = rot_a.y;
     let y = rot_b.x;
     let z = rot_b.y;
-
+    
     let R = mat3x3f(
 		1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - r * z), 2.0 * (x * z + r * y),
 		2.0 * (x * y + r * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - r * x),
@@ -171,13 +167,15 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
     let scale_b = unpack2x16float(vertex.scale[1]);
 
     var S = mat3x3f();
-    S[0][0] = scale_a.x * scale_mod;
-    S[1][1] = scale_a.y * scale_mod;
-    S[2][2] = scale_b.x * scale_mod;
-
+    let scale_mod = render_settings.gaussian_scaling;
+    // apparently have to use exponent here, not sure why tho
+    S[0][0] = exp(scale_a.x) * scale_mod;
+    S[1][1] = exp(scale_a.y) * scale_mod;
+    S[2][2] = exp(scale_b.x) * scale_mod;
+    
     let M = S * R;
 	let Sigma = transpose(M) * M; // 3d covariance
-
+    
     // compute 2d covariance
     var t = (camera.view * pos).xyz;
     let focal_x = camera.focal.x;
@@ -216,11 +214,18 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
 	cov_mat[1][1] += 0.3;
 
     let cov = vec3f(cov_mat[0][0], cov_mat[0][1], cov_mat[1][1]); // 2d covariance
-
+    
     // compute radius
+    let det = (cov.x * cov.z - cov.y * cov.y);
+    if (det <= 0) {
+        return;
+    }
+    let mid = 0.5 * (cov.x + cov.z);
+    let lambda1 = mid + sqrt(max(0.1, mid * mid - det));
+    let lambda2 = mid - sqrt(max(0.1, mid * mid - det));
+    let radius = ceil(3.0 * sqrt(max(lambda1, lambda2)));
 
-
-    //size *= render_settings.gaussian_scaling;
+    let size = vec2f(radius, radius) / camera.viewport;
 
     // increment the index for splat storage
     let atomic_idx = atomicAdd(&sort_infos.keys_size, 1u);

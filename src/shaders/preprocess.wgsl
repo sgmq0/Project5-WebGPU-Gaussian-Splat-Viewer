@@ -151,7 +151,76 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
 
     // temp size for testing
     var size = vec2f(0.01, 0.01);
-    size *= render_settings.gaussian_scaling;
+    let scale_mod = render_settings.gaussian_scaling;
+
+    // compute 3d covariance
+    let rot_a = unpack2x16float(vertex.rot[0]);
+    let rot_b = unpack2x16float(vertex.rot[1]);
+    let r = rot_a.x;
+    let x = rot_a.y;
+    let y = rot_b.x;
+    let z = rot_b.y;
+
+    let R = mat3x3f(
+		1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - r * z), 2.0 * (x * z + r * y),
+		2.0 * (x * y + r * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - r * x),
+		2.0 * (x * z - r * y), 2.0 * (y * z + r * x), 1.0 - 2.0 * (x * x + y * y)
+	);
+    
+    let scale_a = unpack2x16float(vertex.scale[0]);
+    let scale_b = unpack2x16float(vertex.scale[1]);
+
+    var S = mat3x3f();
+    S[0][0] = scale_a.x * scale_mod;
+    S[1][1] = scale_a.y * scale_mod;
+    S[2][2] = scale_b.x * scale_mod;
+
+    let M = S * R;
+	let Sigma = transpose(M) * M; // 3d covariance
+
+    // compute 2d covariance
+    var t = (camera.view * pos).xyz;
+    let focal_x = camera.focal.x;
+    let focal_y = camera.focal.y;
+
+    let limx = 0.65 * camera.viewport.x / focal_x;
+    let limy = 0.65 * camera.viewport.y / focal_y;
+	let txtz = t.x / t.z;
+	let tytz = t.y / t.z; 
+
+    t.x = min(limx, max(-limx, txtz)) * t.z;
+	t.y = min(limy, max(-limy, tytz)) * t.z;
+
+    let J = mat3x3f(
+		focal_x / t.z, 0.0, -(focal_x * t.x) / (t.z * t.z),
+		0.0, focal_y / t.z, -(focal_y * t.y) / (t.z * t.z),
+		0.0, 0.0, 0.0
+    );
+
+    let W = mat3x3f(
+		camera.view[0][0], camera.view[0][1], camera.view[0][2],
+		camera.view[1][0], camera.view[1][1], camera.view[1][2],
+		camera.view[2][0], camera.view[2][1], camera.view[2][2]
+    );
+
+    let T = W * J;
+
+    let Vrk = mat3x3f(
+		Sigma[0][0], Sigma[0][1], Sigma[0][2],
+		Sigma[1][0], Sigma[1][1], Sigma[1][2],
+		Sigma[2][0], Sigma[2][1], Sigma[2][2]
+    );
+
+    var cov_mat = transpose(T) * transpose(Vrk) * T;
+	cov_mat[0][0] += 0.3;
+	cov_mat[1][1] += 0.3;
+
+    let cov = vec3f(cov_mat[0][0], cov_mat[0][1], cov_mat[1][1]); // 2d covariance
+
+    // compute radius
+
+
+    //size *= render_settings.gaussian_scaling;
 
     // increment the index for splat storage
     let atomic_idx = atomicAdd(&sort_infos.keys_size, 1u);

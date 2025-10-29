@@ -56,9 +56,8 @@ struct Gaussian {
 };
 
 struct Splat {
-    packed_pos: u32,
-    packed_size: u32,
-    color: vec3<f32>,
+    packed_pos_size: array<u32,2>,
+    packed_color: array<u32,2>,
     packed_conic_opacity: array<u32,2>
 };
 
@@ -92,12 +91,12 @@ fn sh_coef(splat_idx: u32, c_idx: u32) -> vec3<f32> {
     //TODO: access your binded sh_coeff, see load.ts for how it is stored
     // splat_idx: index of the splat to access  
     // c_idx: index of the coefficient
-    let idx = splat_idx * 24u + (c_idx / 2u * 3u) + (c_idx % 2u); // each coeff uses 3 u32 which is 2 coeffs packed into 6 u32
+    let idx = splat_idx * 24 + (c_idx / 2) * 3 + (c_idx % 2); // each coeff uses 3 u32 which is 2 coeffs packed into 6 u32
 
     let col_xy = unpack2x16float(sh_buffer[idx]);
     let col_za = unpack2x16float(sh_buffer[idx + 1]);
 
-    if (idx % 2u == 0u) {
+    if (c_idx % 2 == 0) {
         return vec3<f32>(col_xy.x, col_xy.y, col_za.x);
     } else {
         return vec3<f32>(col_xy.y, col_za.x, col_za.y);
@@ -212,11 +211,11 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
 		0.0, 0.0, 0.0
     );
 
-    let W = mat3x3f(
+    let W = transpose(mat3x3f(
 		camera.view[0][0], camera.view[0][1], camera.view[0][2],
 		camera.view[1][0], camera.view[1][1], camera.view[1][2],
 		camera.view[2][0], camera.view[2][1], camera.view[2][2]
-    );
+    ));
 
     let T = W * J;
 
@@ -260,9 +259,10 @@ fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgr
     let color = computeColorFromSH(normal_vec, idx, u32(render_settings.sh_deg));
 
     // store data into splats
-    splats[atomic_idx].packed_pos = pack2x16float(ndc_pos);
-    splats[atomic_idx].packed_size = pack2x16float(size);
-    splats[atomic_idx].color = color.xyz;
+    splats[atomic_idx].packed_pos_size[0] = pack2x16float(ndc_pos);
+    splats[atomic_idx].packed_pos_size[1] = pack2x16float(size);
+    splats[atomic_idx].packed_color[0] = pack2x16float(color.xy);
+    splats[atomic_idx].packed_color[1] = pack2x16float(vec2(color.z, 1.0));
     splats[atomic_idx].packed_conic_opacity[0] = conic_a;
     splats[atomic_idx].packed_conic_opacity[1] = conic_b;
     //splats[atomic_idx].packed_col = pack2x16float(col.xy);

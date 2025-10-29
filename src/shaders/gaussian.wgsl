@@ -15,9 +15,8 @@ struct VertexOutput {
 };
 
 struct Splat {
-    packed_pos: u32,
-    packed_size: u32,
-    color: vec3<f32>,
+    packed_pos_size: array<u32,2>,
+    packed_color: array<u32,2>,
     packed_conic_opacity: array<u32,2>
 };
 
@@ -64,9 +63,10 @@ fn vs_main(
     // unpack data from splats
     let actual_index = sort_indices[in.instance_index];
     let splat = splats[actual_index];
-    let pos = unpack2x16float(splat.packed_pos);
-    let size = unpack2x16float(splat.packed_size);
-    let color = splat.color;
+    let pos = unpack2x16float(splat.packed_pos_size[0]);
+    let size = unpack2x16float(splat.packed_pos_size[1]);
+    let color_rg = unpack2x16float(splat.packed_color[0]);
+    let color_ba = unpack2x16float(splat.packed_color[1]);
 
     let local = quad[in.vertex_index];
     let scaled_local = vec2(local.x * size.x, local.y * size.y);
@@ -79,11 +79,11 @@ fn vs_main(
     let conic_center = vec2f(pos.x, pos.y);
 
     out.position = vec4<f32>(world_pos, 0.0, 1.0);
-    out.packed_pos = splat.packed_pos;
-    out.packed_size = splat.packed_size;
+    out.packed_pos = splat.packed_pos_size[0];
+    out.packed_size = splat.packed_pos_size[1];
     out.conic_opacity = conic_opacity;
     out.conic_center = conic_center;
-    out.color = color;
+    out.color = vec3<f32>(color_rg.x, color_rg.y, color_ba.x);
 
     return out;
 }
@@ -99,6 +99,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // compute offset
     var offset = ndc - in.conic_center.xy;
+    offset.x *= -1.0;
     offset = offset * camera.viewport * 0.5;
 
     // compute the power

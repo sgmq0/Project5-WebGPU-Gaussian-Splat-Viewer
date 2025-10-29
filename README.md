@@ -6,9 +6,12 @@
   * [LinkedIn](https://www.linkedin.com/in/raymond-ma-feng/), [personal website](https://www.rfeng.dev/)
 * Tested on: Windows 11, i9-9900KF @ 3.60GHz 32GB, NVIDIA GeForce RTX 2070 SUPER (Personal Computer)
 
-## [🚀 Live Deployment 🚀](https://sgmq0.github.io/Project4-WebGPU-Forward-Plus-and-Clustered-Deferred/)
+## [🚀 Live Deployment 🚀](https://sgmq0.github.io/Project5-WebGPU-Gaussian-Splat-Viewer/)
 
-### Demo Video/GIF
+### Demo Video & Images
+
+https://github.com/user-attachments/assets/072abd4c-8de9-41c1-98d7-13a15374d1b9
+
 ![](/images/bike_scene.png)
 ![](/images/bonsai_scene.png)
 
